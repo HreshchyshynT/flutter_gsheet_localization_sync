@@ -116,7 +116,7 @@ def fill_sheet_from_localizations(sheet, localizations: dict[str, dict[str, str]
     
     # Clear the sheet and update with new data
     sheet.clear()
-    sheet.update("A1", rows)
+    sheet.update (rows,"A1")
     print(f"Sheet updated with {len(rows)-1} translation entries.")
 
 
