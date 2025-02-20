@@ -84,7 +84,7 @@ def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, st
         for i in range(1, len(header)):
             lang_code = header[i].strip()
             # If the row doesn't have a value for this column, default to an empty string.
-            value = row[i].strip() if i < len(row) else ""
+            value = row[i] if i < len(row) else ""
             lang_translations[lang_code] = value
         translations_dict[id_key] = lang_translations
 
@@ -138,7 +138,7 @@ def fill_sheet_from_localizations(sheet, localizations: dict[str, dict[str, str]
     header = ["id"] + lang_codes
     rows = [header]
     
-    # Prepare each row; sort keys for consistency.
+    # Prepare each row
     for str_id in localizations.keys():
         row = [str_id]
         for lang in lang_codes:
@@ -147,7 +147,7 @@ def fill_sheet_from_localizations(sheet, localizations: dict[str, dict[str, str]
     
     # Clear the sheet and update with new data
     sheet.clear()
-    sheet.update (rows,"A1")
+    sheet.update(rows,"A1", value_input_option="RAW")
     print(f"Sheet updated with {len(rows)-1} translation entries.")
 
 
