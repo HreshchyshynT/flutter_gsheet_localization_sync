@@ -1,10 +1,14 @@
 import argparse
 import os
+import json
 from typing import Optional
 import gspread
 import yaml
 
-def l10n_files_dir(config_path: str) -> str:
+def arb_files_dir(config_path: str) -> str:
+    """
+    Read l10n.yaml to get the 'arb-dir' entry.
+    """
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
     arb_dir = config.get("arb-dir")
@@ -14,6 +18,7 @@ def l10n_files_dir(config_path: str) -> str:
     return os.path.abspath(os.path.join(os.path.dirname(config_path), arb_dir))
 
 def find_l10n_config(project_path: str) -> Optional[str]:
+    """Find the l10n.yaml configuration file in the project directory."""
     config_path = os.path.join(project_path, "l10n.yaml")
     return config_path if os.path.isfile(config_path) else None
 
@@ -54,11 +59,71 @@ def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, st
 
     return translations_dict
 
+def gather_localizations_from_arbs(arbs_dir: str) -> tuple[dict[str, dict[str, str]], set[str]]:
+    """
+    Gathers localization data from ARB files in the given directory.
+    Files must be named in the format: app_[language_code].arb.
+    Returns a tuple: (localizations_dict, metadata_keys)
+    
+    localizations_dict: { id: { language_code: translation, ... } }
+    metadata_keys: set of keys that start with "@" encountered in ARB files.
+    """
+    localizations = {}
+    metadata_keys = set()
+    
+    for filename in os.listdir(arbs_dir):
+        if filename.startswith("app_") and filename.endswith(".arb"):
+            # Extract language code from filename. Example: app_en.arb -> "en"
+            parts = filename.split("_")
+            if len(parts) < 2:
+                continue
+            lang_part = parts[1]
+            language_code = lang_part.split(".")[0]
+            file_path = os.path.join(arbs_dir, filename)
+            with open(file_path, "r", encoding="utf-8") as f:
+                arb_data = json.load(f)
+            for key, value in arb_data.items():
+                if key.startswith("@"):
+                    metadata_keys.add(key)
+                else: 
+                    if key not in localizations:
+                        localizations[key] = {}
+                    localizations[key][language_code] = value
+    return localizations, metadata_keys
+
+def fill_sheet_from_localizations(sheet, localizations: dict[str, dict[str, str]]):
+    """
+    Fill the provided sheet with data from the localizations dictionary.
+    The first row is a header: ["id", sorted_language_codes...]
+    Each subsequent row contains the id and corresponding translations.
+    """
+    # Determine the complete set of language codes
+    lang_codes = set()
+    for translations in localizations.values():
+        lang_codes.update(translations.keys())
+    lang_codes = sorted(lang_codes)
+    
+    # Prepare header row
+    header = ["id"] + lang_codes
+    rows = [header]
+    
+    # Prepare each row; sort keys for consistency.
+    for str_id in localizations.keys():
+        row = [str_id]
+        for lang in lang_codes:
+            row.append(localizations[str_id].get(lang, ""))
+        rows.append(row)
+    
+    # Clear the sheet and update with new data
+    sheet.clear()
+    sheet.update("A1", rows)
+    print(f"Sheet updated with {len(rows)-1} translation entries.")
+
 
 def main():
     # Set up command-line arguments
     parser = argparse.ArgumentParser(
-        description="Fetch localization data from a Google Sheet and save it to the directory where l10n.yaml is located."
+        description="Fetch localization data from a Google Sheet or initialize the sheet from ARB files."
     )
     parser.add_argument(
         "--creds",
@@ -75,11 +140,16 @@ def main():
         required=True,
         help="Path to the project directory where l10n.yaml is located."
     )
+    parser.add_argument(
+        "--init",
+        action="store_true",
+        help="If provided, initialize the sheet from ARB files (default is to update ARB files from sheet)."
+    )
     args = parser.parse_args()
 
     # Ensure the project path exists
     if not os.path.isdir(args.project_path):
-        os.makedirs(args.project_path, exist_ok=True)
+        raise Exception("Project path does not exist.")
 
     # Set up credentials using the provided service account JSON file
     client = gspread.auth.service_account(filename=args.creds)
@@ -87,18 +157,28 @@ def main():
     # Open the spreadsheet using its key and access the first sheet
     sheet = client.open_by_key(args.sheet_key).sheet1
 
-    # Read data from the sheet
-    data = sheet.get_all_values()
-    print(data)
-
     config = find_l10n_config(args.project_path)
     if not config:
         raise Exception("Could not find l10n.yaml in the project directory.")
-    localizations_dir = l10n_files_dir(config)
+    localizations_dir = arb_files_dir(config)
     # print localizations_dir and config 
     print("localizations_dir: ", localizations_dir)
     print("config: ", config)
-    # sync_localizations(data, localizations_dir)
+
+
+    if args.init:
+        # Gather localizations from ARB files
+        loc_dict, metadata = gather_localizations_from_arbs(localizations_dir)
+        print(f"Found {len(metadata)} metadata keys and {len(loc_dict)} translation keys in ARB files.")
+        
+        # Fill the sheet with the gathered data
+        fill_sheet_from_localizations(sheet, loc_dict)
+    else:
+        # Read data from the sheet
+        data = sheet.get_all_values()
+        print(data)
+
+        # sync_localizations(data, localizations_dir)
 
 
 if __name__ == "__main__":
