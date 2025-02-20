@@ -3,6 +3,7 @@ import os
 import json
 from typing import Optional
 import gspread
+from gspread.worksheet import Worksheet
 import yaml
 
 def arb_files_dir(config_path: str) -> str:
@@ -22,8 +23,38 @@ def find_l10n_config(project_path: str) -> Optional[str]:
     config_path = os.path.join(project_path, "l10n.yaml")
     return config_path if os.path.isfile(config_path) else None
 
-def sync_localizations(sheet_data: list[dict[str, int|str|float]], localization_dir: str):
-    pass
+def sync_localizations(sheet: Worksheet, localization_dir: str):
+    """
+    Update ARB files in localization_dir with data from the sheet.
+    
+    The sheet is expected to have a header row: ["id", "en", "pl", ...]
+    The function reads the sheet data, converts it to a dictionary:
+      { id: { language_code: translation, ... } }
+    and then updates (or creates) ARB files named app_<language_code>.arb.
+    """
+    all_values = sheet.get_all_values()
+    sheet_dict = parse_sheet_to_dict(all_values)
+    
+    header = all_values[0]
+    language_codes = [col.strip() for col in header[1:]]
+    
+    for lang in language_codes:
+        arb_filename = f"app_{lang}.arb"
+        arb_filepath = os.path.join(localization_dir, arb_filename)
+        arb_data = {}
+        if os.path.isfile(arb_filepath):
+            with open(arb_filepath, "r", encoding="utf-8") as f:
+                arb_data = json.load(f)
+        
+        updated_keys = 0
+        for trans_id, translations in sheet_dict.items():
+            if lang in translations:
+                arb_data[trans_id] = translations[lang]
+                updated_keys += 1
+        
+        with open(arb_filepath, "w", encoding="utf-8") as f:
+            json.dump(arb_data, f, ensure_ascii=False, indent=2)
+        print(f"Updated {updated_keys} keys in {arb_filename}.")
 
 def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, str]]:
     """
@@ -174,11 +205,7 @@ def main():
         # Fill the sheet with the gathered data
         fill_sheet_from_localizations(sheet, loc_dict)
     else:
-        # Read data from the sheet
-        data = sheet.get_all_values()
-        print(data)
-
-        # sync_localizations(data, localizations_dir)
+        sync_localizations(sheet, localizations_dir)
 
 
 if __name__ == "__main__":
