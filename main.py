@@ -3,6 +3,7 @@ import os
 import json
 from typing import Optional
 import gspread
+from gspread.utils import ValueInputOption
 from gspread.worksheet import Worksheet
 import yaml
 
@@ -53,7 +54,8 @@ def sync_localizations(sheet: Worksheet, localization_dir: str):
                 updated_keys += 1
         
         with open(arb_filepath, "w", encoding="utf-8") as f:
-            json.dump(arb_data, f, ensure_ascii=False, indent=2)
+            json_str = json.dumps(arb_data, ensure_ascii=False, indent=2)
+            f.write(json_str)
         print(f"Updated {updated_keys} keys in {arb_filename}.")
 
 def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, str]]:
@@ -85,7 +87,7 @@ def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, st
             lang_code = header[i].strip()
             # If the row doesn't have a value for this column, default to an empty string.
             value = row[i] if i < len(row) else ""
-            lang_translations[lang_code] = value
+            lang_translations[lang_code] = value.replace("\\n", "\n")
         translations_dict[id_key] = lang_translations
 
     return translations_dict
@@ -142,12 +144,13 @@ def fill_sheet_from_localizations(sheet, localizations: dict[str, dict[str, str]
     for str_id in localizations.keys():
         row = [str_id]
         for lang in lang_codes:
-            row.append(localizations[str_id].get(lang, ""))
+            # replace \n with \\n to avoid newlines in the sheet
+            row.append(localizations[str_id].get(lang, "").replace("\n", "\\n"))
         rows.append(row)
     
     # Clear the sheet and update with new data
     sheet.clear()
-    sheet.update(rows,"A1", value_input_option="RAW")
+    sheet.update(rows, "A1")
     print(f"Sheet updated with {len(rows)-1} translation entries.")
 
 
