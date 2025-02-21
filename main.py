@@ -3,7 +3,6 @@ import os
 import json
 from typing import Optional
 import gspread
-from gspread.utils import ValueInputOption
 from gspread.worksheet import Worksheet
 import yaml
 
