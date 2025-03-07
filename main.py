@@ -91,6 +91,59 @@ def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, st
 
     return translations_dict
 
+def push_values_to_sheet(sheet, localizations: dict[str, dict[str, str]]):
+    """
+    Update the sheet with data from the localizations dictionary.
+    Merges new translations with existing ones, keeping the worksheet's column order.
+    New entries are appended at the end.
+    """
+    # Get existing sheet data and parse it
+    existing_data = sheet.get_all_values()
+    if not existing_data:
+        # Sheet is empty, create with header
+        lang_codes = set()
+        for translations in localizations.values():
+            lang_codes.update(translations.keys())
+        lang_codes = sorted(lang_codes)
+        header = ["id"] + lang_codes
+        sheet.update('A1', [header])
+        existing_data = [header]
+        existing_sheet_dict = {}
+    else:
+        existing_sheet_dict = parse_sheet_to_dict(existing_data)
+
+    header = existing_data[0]
+    lang_codes = header[1:]  # Get language codes from header
+
+    # Merge existing and new translations
+    merged_translations = existing_sheet_dict.copy()
+    new_count = 0
+
+    for str_id, translations in localizations.items():
+        if str_id not in merged_translations:
+            # Add new translation entry
+            merged_translations[str_id] = translations
+            new_count += 1
+
+    # Convert merged dictionary back to rows
+    rows = [header]  # Start with header
+    for str_id, translations in merged_translations.items():
+        row = [str_id]
+        for lang in lang_codes:
+            # replace \n with \\n to avoid newlines in the sheet
+            row.append(translations.get(lang, "").replace("\n", "\\n"))
+        rows.append(row)
+
+    # Update the entire sheet
+    sheet.clear()
+    sheet.update('A1', rows)
+
+    print(f"Added {new_count} new translation entries.")
+    if new_count > 0:
+        new_ids = set(merged_translations.keys()) - set(existing_sheet_dict.keys())
+        print(f"New IDs added: \n\t{'\n\t'.join(sorted(new_ids))}")
+
+
 def gather_localizations_from_arbs(arbs_dir: str) -> tuple[dict[str, dict[str, str]], set[str]]:
     """
     Gathers localization data from ARB files in the given directory.
@@ -178,6 +231,11 @@ def main():
         action="store_true",
         help="If provided, initialize the sheet from ARB files (default is to update ARB files from sheet)."
     )
+    parser.add_argument(
+        "--push",
+        action="store_true",
+        help="If provided, pushes values from ARB files (default is to update ARB files from sheet), if ids are absent in the sheet"
+    )
     args = parser.parse_args()
 
     # Ensure the project path exists
@@ -206,6 +264,13 @@ def main():
         
         # Fill the sheet with the gathered data
         fill_sheet_from_localizations(sheet, loc_dict)
+    elif args.push:
+        # Gather localizations from ARB files
+        loc_dict, metadata = gather_localizations_from_arbs(localizations_dir)
+        print(f"Found {len(metadata)} metadata keys and {len(loc_dict)} translation keys in ARB files.")
+        
+        # push new values from loc_dict to sheet 
+        push_values_to_sheet(sheet, loc_dict)
     else:
         sync_localizations(sheet, localizations_dir)
 
