@@ -13,7 +13,7 @@ A Python tool to synchronize Flutter localization ARB files with a Google Spread
 - Supports two-way synchronization between ARB files and Google Sheets
 
 ## Prerequisites
-- Python 3.7+
+- Python 3.12+
 - Google Service Account JSON (with Sheets API access)
 - A Google Spreadsheet
 - Flutter project with `l10n.yaml` configuration
@@ -28,7 +28,7 @@ cd flutter_l10n_gsheet_synch
 
 2. Create and activate a virtual environment (recommended):
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows use: venv\Scripts\activate
 ```
 
@@ -48,24 +48,24 @@ pip install -r requirements.txt
 
 ### Basic Command Structure
 ```bash
-python main.py --creds path/to/credentials.json --sheet-key your_sheet_key --project-path path/to/flutter_project
+python3 main.py --creds path/to/credentials.json --sheet-key your_sheet_key --project-path path/to/flutter_project
 ```
 
 ### Command Examples
 
 1. Update ARB files from Google Sheet (default mode):
 ```bash
-python main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project
+python3 main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project
 ```
 
 2. Initialize Google Sheet from existing ARB files:
 ```bash
-python main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --init
+python3 main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --init
 ```
 
 3. Push new translations from ARB files to sheet:
 ```bash
-python main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --push
+python3 main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --push
 ```
 
 ### Notes
