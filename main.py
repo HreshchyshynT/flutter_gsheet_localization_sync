@@ -82,12 +82,18 @@ def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, st
         # Create a dict for this id with language code -> translation.
         # We'll iterate over the rest of the columns.
         lang_translations = {}
+        missing_translations = []
         for i in range(1, len(header)):
             lang_code = header[i].strip()
             # If the row doesn't have a value for this column, default to an empty string.
-            value = row[i] if i < len(row) else ""
+            if i >= len(row) or len(row[i]) == 0: 
+                missing_translations.append(lang_code)
+                continue
+            value = row[i]
             lang_translations[lang_code] = value.replace("\\n", "\n")
         translations_dict[id_key] = lang_translations
+        if len(missing_translations) > 0:
+            print(f"Missing translations for {id_key}: {missing_translations}")
 
     return translations_dict
 
