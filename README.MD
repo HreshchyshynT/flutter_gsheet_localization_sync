@@ -26,18 +26,12 @@ git clone https://github.com/yourusername/flutter_l10n_gsheet_synch.git
 cd flutter_l10n_gsheet_synch
 ```
 
-2. Create and activate a virtual environment (recommended):
+2. Install dependencies:
 ```bash
-python3 -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
+uv sync
 ```
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Set up Google Sheets API:
+3. Set up Google Sheets API:
    - Go to [Google Cloud Console](https://console.cloud.google.com/)
    - Create a new project or select an existing one
    - Enable the Google Sheets API
@@ -48,24 +42,24 @@ pip install -r requirements.txt
 
 ### Basic Command Structure
 ```bash
-python3 main.py --creds path/to/credentials.json --sheet-key your_sheet_key --project-path path/to/flutter_project
+uv run main.py --creds path/to/credentials.json --sheet-key your_sheet_key --project-path path/to/flutter_project
 ```
 
 ### Command Examples
 
 1. Update ARB files from Google Sheet (default mode):
 ```bash
-python3 main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project
+uv run main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project
 ```
 
 2. Initialize Google Sheet from existing ARB files:
 ```bash
-python3 main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --init
+uv run main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --init
 ```
 
 3. Push new translations from ARB files to sheet:
 ```bash
-python3 main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --push
+uv run main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --push
 ```
 
 ### Notes
