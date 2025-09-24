@@ -3,11 +3,12 @@
 A Python tool to synchronize Flutter localization ARB files with a Google Spreadsheet. Use it to update ARB files from sheet data or initialize the sheet from existing ARB files.
 
 ## Features
-- **Three Operation Modes:** 
-  - Update ARB files from the sheet (default mode)
-  - Initialize the sheet from ARB files using the `--init` flag
-  - Push new translations to sheet using the `--push` flag
-- Reads arg files location from `l10n.yaml` (expects `arb-dir` entry)
+- **Three Operation Modes:**
+  - **Pull (default)**: Update ARB files from the sheet
+  - **Init**: Initialize the sheet from ARB files
+  - **Push**: Push new translations to sheet
+- Environment variable support with `.env` file
+- Reads ARB files location from `l10n.yaml` (expects `arb-dir` entry)
 - Detects available languages from ARB filenames (e.g., `app_en.arb`)
 - Preserves special characters (e.g., literal `\n` remains as `\n`)
 - Supports two-way synchronization between ARB files and Google Sheets
@@ -40,33 +41,56 @@ uv sync
 
 ## Usage
 
-### Basic Command Structure
+### Configuration
+
+#### Option 1: Environment Variables (Recommended)
+1. Create a `.env` file in the project root:
 ```bash
-uv run main.py --creds path/to/credentials.json --sheet-key your_sheet_key --project-path path/to/flutter_project
+cp .env.example .env
+```
+
+2. Edit the `.env` file with your values:
+```env
+GOOGLE_CREDS_PATH=path/to/your/service-account.json
+SHEET_KEY=your_google_sheet_key_here
+PROJECT_PATH=path/to/your/flutter/project
+```
+
+#### Option 2: Command Line Arguments
+```bash
+uv run main.py --creds path/to/credentials.json --sheet-key your_sheet_key --project-path path/to/flutter_project 
 ```
 
 ### Command Examples
 
 1. Update ARB files from Google Sheet (default mode):
 ```bash
-uv run main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project
+uv run main.py
+# or explicitly:
+uv run main.py --mode pull
 ```
 
 2. Initialize Google Sheet from existing ARB files:
 ```bash
-uv run main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --init
+uv run main.py --mode init
 ```
 
 3. Push new translations from ARB files to sheet:
 ```bash
-uv run main.py --creds service_account.json --sheet-key 1234567890abcdef --project-path ./my_flutter_project --push
+uv run main.py --mode push
 ```
+
+### Mode Options
+- `pull` (default): Update ARB files from the sheet
+- `init`: Initialize the sheet from ARB files
+- `push`: Push new values from ARB files to sheet (only adds missing IDs)
 
 ### Notes
 - The sheet key can be found in your Google Spreadsheet URL: `https://docs.google.com/spreadsheets/d/[SHEET_KEY]/edit`
 - The project path should contain a valid `l10n.yaml` file with an `arb-dir` entry
 - Make sure your service account has write access to the Google Sheet
 - The script expects ARB files to be named as `app_[language_code].arb` (e.g., `app_en.arb`, `app_es.arb`)
+- Environment variables take precedence over command line arguments when both are provided
 
 ## Sheet Format
 The Google Sheet should be structured as follows:
