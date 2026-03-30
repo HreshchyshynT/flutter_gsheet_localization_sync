@@ -122,56 +122,83 @@ def parse_sheet_to_dict(sheet_values: list[list[str]]) -> dict[str, dict[str, st
 
 def push_values_to_sheet(sheet, localizations: dict[str, dict[str, str]]):
     """
-    Update the sheet with data from the localizations dictionary.
-    Merges new translations with existing ones, keeping the worksheet's column order.
-    New entries are appended at the end.
+    Update the sheet with only the actual differences from the localizations dictionary.
+    Changed cells are updated individually via batch_update, new entries are appended.
+    Unchanged data is not touched, keeping Google Sheets version history clean.
     """
-    # Get existing sheet data and parse it
     existing_data = sheet.get_all_values()
     if not existing_data:
-        # Sheet is empty, create with header
+        # Sheet is empty — write header + all data in one go
         lang_codes = set()
         for translations in localizations.values():
             lang_codes.update(translations.keys())
         lang_codes = sorted(lang_codes)
         header = ["id"] + lang_codes
-        sheet.update("A1", [header])
-        existing_data = [header]
-        existing_sheet_dict = {}
-    else:
-        existing_sheet_dict = parse_sheet_to_dict(existing_data)
+        rows = [header]
+        for str_id, translations in localizations.items():
+            row = [str_id]
+            for lang in lang_codes:
+                row.append(translations.get(lang, "").replace("\n", "\\n"))
+            rows.append(row)
+        sheet.update("A1", rows)
+        sheet.resize(rows=len(rows), cols=len(rows[0]))
+        print(f"Initialized sheet with {len(rows) - 1} translation entries.")
+        return
 
+    existing_dict = parse_sheet_to_dict(existing_data)
     header = existing_data[0]
-    lang_codes = header[1:]  # Get language codes from header
+    lang_codes = [h.strip() for h in header[1:]]
 
-    # Merge existing and new translations
-    merged_translations = existing_sheet_dict.copy()
-    new_count = 0
+    # Build row index: translation id -> sheet row number (1-based)
+    row_index = {}
+    for i, row in enumerate(existing_data[1:], start=2):
+        if row and row[0].strip():
+            row_index[row[0].strip()] = i
 
+    # Find changed cells in existing rows
+    cells_to_update = []
+    updated_keys = set()
     for str_id, translations in localizations.items():
-        if str_id not in merged_translations:
-            # Add new translation entry
-            merged_translations[str_id] = translations
-            new_count += 1
+        if str_id in existing_dict:
+            row_num = row_index[str_id]
+            for j, lang in enumerate(lang_codes):
+                col_num = j + 2  # column 1 is id, columns 2+ are languages
+                local_val = translations.get(lang)
+                existing_val = existing_dict[str_id].get(lang)
 
-    # Convert merged dictionary back to rows
-    rows = [header]  # Start with header
-    for str_id, translations in merged_translations.items():
-        row = [str_id]
-        for lang in lang_codes:
-            # replace \n with \\n to avoid newlines in the sheet
-            row.append(translations.get(lang, "").replace("\n", "\\n"))
-        rows.append(row)
+                if local_val is None:
+                    continue  # Don't clear existing translations
+                if local_val != existing_val:
+                    cell_ref = gspread.utils.rowcol_to_a1(row_num, col_num)
+                    cells_to_update.append({
+                        "range": cell_ref,
+                        "values": [[local_val.replace("\n", "\\n")]],
+                    })
+                    updated_keys.add(str_id)
 
-    # Update the entire sheet (write first, then trim excess to prevent data loss)
-    sheet.update("A1", rows)
-    sheet.resize(rows=len(rows), cols=len(rows[0]))
+    # Find new keys and build rows to append
+    new_rows = []
+    new_ids = []
+    for str_id, translations in localizations.items():
+        if str_id not in existing_dict:
+            row = [str_id]
+            for lang in lang_codes:
+                row.append(translations.get(lang, "").replace("\n", "\\n"))
+            new_rows.append(row)
+            new_ids.append(str_id)
 
-    print(f"Added {new_count} new translation entries.")
-    if new_count > 0:
-        new_ids = set(merged_translations.keys()) - \
-            set(existing_sheet_dict.keys())
+    # Apply only the actual changes
+    if cells_to_update:
+        sheet.batch_update(cells_to_update)
+        print(f"Updated {len(updated_keys)} existing entries ({len(cells_to_update)} cells).")
+
+    if new_rows:
+        sheet.append_rows(new_rows)
+        print(f"Added {len(new_rows)} new translation entries.")
         print(f"New IDs added: \n\t{'\n\t'.join(sorted(new_ids))}")
+
+    if not cells_to_update and not new_rows:
+        print("No changes to push. Local ARB files and sheet are in sync.")
 
 
 def gather_localizations_from_arbs(
