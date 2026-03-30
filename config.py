@@ -8,6 +8,7 @@ class Mode(Enum):
     INIT = "init"
     PUSH = "push"
     PULL = "pull"
+    DIFF = "diff"
 
 
 class Config:
@@ -48,9 +49,9 @@ def init_config() -> Config:
     )
     parser.add_argument(
         "--mode", "-m",
-        choices=["init", "push", "pull"],
+        choices=["init", "push", "pull", "diff"],
         default="pull",
-        help="Operation mode: init (initialize sheet from ARB files), push (push new values from ARB files to sheet), pull (update ARB files from sheet, default)",
+        help="Operation mode: init (initialize sheet from ARB files), push (push new values from ARB files to sheet), pull (update ARB files from sheet, default), diff (show differences between local ARB files and sheet)",
     )
     args = parser.parse_args()
 

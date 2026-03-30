@@ -1,10 +1,27 @@
 import os
+import sys
 import json
 from typing import Optional
 import gspread
 from gspread.worksheet import Worksheet
 import yaml
 import config as cfg
+
+
+class _Colors:
+    def __init__(self):
+        use_color = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+        if use_color:
+            self.RED = "\033[31m"
+            self.GREEN = "\033[32m"
+            self.YELLOW = "\033[33m"
+            self.CYAN = "\033[36m"
+            self.BOLD = "\033[1m"
+            self.DIM = "\033[2m"
+            self.RESET = "\033[0m"
+        else:
+            self.RED = self.GREEN = self.YELLOW = ""
+            self.CYAN = self.BOLD = self.DIM = self.RESET = ""
 
 
 def arb_files_dir(config_path: str) -> str:
@@ -223,6 +240,110 @@ def fill_sheet_from_localizations(sheet, localizations: dict[str, dict[str, str]
     print(f"Sheet updated with {len(rows)-1} translation entries.")
 
 
+def diff_localizations(sheet: Worksheet, localization_dir: str) -> int:
+    """
+    Compare local ARB files with Google Sheet data and print a colored diff report.
+    Returns 0 if in sync, 1 if differences found.
+    """
+    c = _Colors()
+
+    all_values = sheet.get_all_values()
+    sheet_dict = parse_sheet_to_dict(all_values)
+    local_dict, _ = gather_localizations_from_arbs(localization_dir)
+
+    local_keys = set(local_dict.keys())
+    sheet_keys = set(sheet_dict.keys())
+
+    local_only = sorted(local_keys - sheet_keys)
+    sheet_only = sorted(sheet_keys - local_keys)
+    common_keys = local_keys & sheet_keys
+
+    # Collect all languages from both sources
+    all_languages = set()
+    for translations in local_dict.values():
+        all_languages.update(translations.keys())
+    for translations in sheet_dict.values():
+        all_languages.update(translations.keys())
+    all_languages = sorted(all_languages)
+
+    changed: dict[str, dict[str, tuple[str, str]]] = {}
+    missing: dict[str, dict[str, str]] = {}
+
+    for key in sorted(common_keys):
+        local_trans = local_dict[key]
+        sheet_trans = sheet_dict[key]
+
+        for lang in all_languages:
+            local_val = local_trans.get(lang)
+            sheet_val = sheet_trans.get(lang)
+
+            if local_val is not None and sheet_val is not None:
+                if local_val != sheet_val:
+                    if key not in changed:
+                        changed[key] = {}
+                    changed[key][lang] = (local_val, sheet_val)
+            elif local_val is not None and sheet_val is None:
+                if key not in missing:
+                    missing[key] = {}
+                missing[key][lang] = "sheet"
+            elif local_val is None and sheet_val is not None:
+                if key not in missing:
+                    missing[key] = {}
+                missing[key][lang] = "local"
+
+    has_diff = local_only or sheet_only or changed or missing
+
+    if not has_diff:
+        print(f"{c.GREEN}Local ARB files and Google Sheet are in sync.{c.RESET}")
+        return 0
+
+    in_sync_count = len(common_keys) - len(changed) - len(missing)
+
+    print(f"\n{c.BOLD}=== Localization Diff: Local ARB files vs Google Sheet ==={c.RESET}\n")
+    print(f"{c.BOLD}Summary:{c.RESET}")
+    print(f"  Keys in sync:              {c.GREEN}{in_sync_count}{c.RESET}")
+    if local_only:
+        print(f"  Keys only in local (ARB):  {c.GREEN}{len(local_only)}{c.RESET}")
+    if sheet_only:
+        print(f"  Keys only in sheet:        {c.RED}{len(sheet_only)}{c.RESET}")
+    if changed:
+        print(f"  Changed translations:      {c.YELLOW}{len(changed)}{c.RESET}")
+    if missing:
+        print(f"  Missing translations:      {c.CYAN}{len(missing)}{c.RESET}")
+
+    if local_only:
+        print(f"\n{c.BOLD}--- Keys only in local (ARB) ---{c.RESET}")
+        for key in local_only:
+            print(f"  {c.GREEN}+ {key}{c.RESET}")
+
+    if sheet_only:
+        print(f"\n{c.BOLD}--- Keys only in sheet ---{c.RESET}")
+        for key in sheet_only:
+            print(f"  {c.RED}- {key}{c.RESET}")
+
+    if changed:
+        print(f"\n{c.BOLD}--- Changed translations ---{c.RESET}")
+        for key in sorted(changed.keys()):
+            print(f"  {c.BOLD}{key}{c.RESET}")
+            for lang, (local_val, sheet_val) in sorted(changed[key].items()):
+                local_display = local_val.replace("\n", "\\n")
+                sheet_display = sheet_val.replace("\n", "\\n")
+                print(f"    {lang}: {c.GREEN}\"{local_display}\"{c.RESET} -> {c.RED}\"{sheet_display}\"{c.RESET}")
+
+    if missing:
+        print(f"\n{c.BOLD}--- Missing translations ---{c.RESET}")
+        for key in sorted(missing.keys()):
+            print(f"  {c.BOLD}{key}{c.RESET}")
+            by_source: dict[str, list[str]] = {}
+            for lang, source in sorted(missing[key].items()):
+                by_source.setdefault(source, []).append(lang)
+            for source, langs in sorted(by_source.items()):
+                print(f"    {c.CYAN}missing in {source}: {', '.join(langs)}{c.RESET}")
+
+    print()
+    return 1
+
+
 def main():
     config = cfg.init_config()
 
@@ -260,6 +381,8 @@ def main():
 
         # push new values from loc_dict to sheet
         push_values_to_sheet(sheet, loc_dict)
+    elif config.mode == cfg.Mode.DIFF:
+        diff_localizations(sheet, localizations_dir)
     else:  # PULL mode (default)
         sync_localizations(sheet, localizations_dir)
 
