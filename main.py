@@ -15,7 +15,7 @@ def arb_files_dir(config_path: str) -> str:
         config = yaml.safe_load(f)
     arb_dir = config.get("arb-dir")
     if not arb_dir:
-        raise Exception("arb-dir not found in the l10n configuration.")
+        raise ValueError("arb-dir not found in the l10n configuration.")
     # Resolve the arb_dir relative to the config_path directory:
     return os.path.abspath(os.path.join(os.path.dirname(config_path), arb_dir))
 
@@ -234,7 +234,7 @@ def main():
 
     l10_config = find_l10n_config(config.project_path)
     if not l10_config:
-        raise Exception("Could not find l10n.yaml in the project directory.")
+        raise FileNotFoundError("Could not find l10n.yaml in the project directory.")
     localizations_dir = arb_files_dir(l10_config)
     # print localizations_dir and config
     print("localizations_dir: ", localizations_dir)

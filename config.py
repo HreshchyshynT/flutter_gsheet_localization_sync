@@ -65,19 +65,19 @@ def init_config() -> Config:
         project_path = os.path.expanduser(project_path)
 
     if not creds_path:
-        raise Exception(
+        raise ValueError(
             "Google credentials path is required. Set GOOGLE_CREDS_PATH env var or use --creds argument."
         )
     if not sheet_key:
-        raise Exception(
+        raise ValueError(
             "Sheet key is required. Set SHEET_KEY env var or use --sheet-key argument."
         )
     if not project_path:
-        raise Exception(
+        raise ValueError(
             "Project path is required. Set PROJECT_PATH env var or use --project-path argument."
         )
 
     if not os.path.isdir(project_path):
-        raise Exception("Project path does not exist.")
+        raise FileNotFoundError("Project path does not exist.")
 
     return Config(creds_path, sheet_key, project_path, mode)
