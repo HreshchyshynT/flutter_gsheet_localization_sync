@@ -146,9 +146,9 @@ def push_values_to_sheet(sheet, localizations: dict[str, dict[str, str]]):
             row.append(translations.get(lang, "").replace("\n", "\\n"))
         rows.append(row)
 
-    # Update the entire sheet
-    sheet.clear()
+    # Update the entire sheet (write first, then trim excess to prevent data loss)
     sheet.update("A1", rows)
+    sheet.resize(rows=len(rows), cols=len(rows[0]))
 
     print(f"Added {new_count} new translation entries.")
     if new_count > 0:
@@ -217,9 +217,9 @@ def fill_sheet_from_localizations(sheet, localizations: dict[str, dict[str, str]
                 lang, "").replace("\n", "\\n"))
         rows.append(row)
 
-    # Clear the sheet and update with new data
-    sheet.clear()
+    # Update the sheet with new data (write first, then trim excess to prevent data loss)
     sheet.update(rows, "A1")
+    sheet.resize(rows=len(rows), cols=len(rows[0]))
     print(f"Sheet updated with {len(rows)-1} translation entries.")
 
 
